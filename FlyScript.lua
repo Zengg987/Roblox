@@ -351,16 +351,83 @@ MovementTab:CreateToggle({
 -- =========================================================
 -- PLAYER
 -- =========================================================
+-- =========================================================
+-- FULL GOD MODE
+-- =========================================================
+local godModeEnabled = false
+local godConnections = {}
+
+local function applyGodMode(char)
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+
+    -- Humanoid replacement (health immunity)
+    hum.Name = "1xGodHumanoid"
+    local clone = hum:Clone()
+    clone.Parent = char
+    clone.Name = "Humanoid"
+    task.wait()
+    hum:Destroy()
+    clone.DisplayDistanceType = "None"
+    clone.Health = clone.MaxHealth
+
+    -- Constantly force max health
+    table.insert(godConnections, clone.HealthChanged:Connect(function()
+        if godModeEnabled then
+            clone.Health = clone.MaxHealth
+        end
+    end))
+
+    -- Prevent void kill / fall damage
+    local hrp = char:WaitForChild("HumanoidRootPart", 2)
+    if hrp then
+        table.insert(godConnections, game:GetService("RunService").Stepped:Connect(function()
+            if godModeEnabled and hrp.Position.Y < -5 then
+                hrp.Velocity = Vector3.zero
+                hrp.CFrame = CFrame.new(0, 10, 0) -- teleport back up if falling in void
+            end
+        end))
+    end
+
+    -- Killbrick / trap immunity
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.Touched:Connect(function(hit)
+                if godModeEnabled and hit:IsDescendantOf(workspace) then
+                    -- Cancel killbricks or traps trying to damage
+                    if clone then clone.Health = clone.MaxHealth end
+                end
+            end)
+        end
+    end
+end
+
 PlayerTab:CreateToggle({
-    Name = "Godmode (Humanoid Immortal)",
+    Name = "God Mode (Full Immunity)",
     CurrentValue = false,
     Callback = function(state)
-        local hum = game.Players.LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-        if hum then
-            hum.Name = state and "GodHumanoid" or "Humanoid"
+        godModeEnabled = state
+
+        -- cleanup old connections
+        for _, con in ipairs(godConnections) do
+            if con.Disconnect then con:Disconnect() end
+        end
+        table.clear(godConnections)
+
+        if state then
+            local char = game.Players.LocalPlayer.Character
+            if char then applyGodMode(char) end
+
+            -- auto reapply on respawn
+            table.insert(godConnections, game.Players.LocalPlayer.CharacterAdded:Connect(function(newChar)
+                task.wait(1)
+                applyGodMode(newChar)
+            end))
         end
     end,
 })
+
 
 -- =========================================================
 -- TROLL TAB
