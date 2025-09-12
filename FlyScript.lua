@@ -94,35 +94,191 @@ game.Players.PlayerAdded:Connect(function(plr)
     end
 end)
 
+
 -- =========================================================
 -- MOVEMENT
 -- =========================================================
+local savedSpeed = 50
 local flying = false
-local flySpeed = 50
+local flySpeed = savedSpeed
+local forwardHold = 0
+local inputFlags = { forward = false, back = false, left = false, right = false, up = false, down = false }
 
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+local lp = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+local bodyVelocity = Instance.new("BodyVelocity")
+bodyVelocity.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+
+local bodyGyro = Instance.new("BodyGyro")
+bodyGyro.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
+
+local humanoid, HRP
+local function getChar()
+    local char = lp.Character or lp.CharacterAdded:Wait()
+    humanoid = char:WaitForChild("Humanoid")
+    HRP = char:WaitForChild("HumanoidRootPart")
+end
+getChar()
+lp.CharacterAdded:Connect(getChar)
+
+-- animations setup
+local function newAnim(id)
+    local anim = Instance.new("Animation")
+    anim.AnimationId = "rbxassetid://" .. id
+    return anim
+end
+
+local animations = {
+    forward = newAnim(90872539),
+    up = newAnim(90872539),
+    right1 = newAnim(136801964),
+    right2 = newAnim(142495255),
+    left1 = newAnim(136801964),
+    left2 = newAnim(142495255),
+    flyLow1 = newAnim(97169019),
+    flyLow2 = newAnim(282574440),
+    flyFast = newAnim(282574440),
+    back1 = newAnim(136801964),
+    back2 = newAnim(106772613),
+    back3 = newAnim(42070810),
+    back4 = newAnim(214744412),
+    down = newAnim(233322916),
+    idle1 = newAnim(97171309)
+}
+
+local tracks = {}
+local function loadAnimations()
+    if humanoid then
+        for name, anim in pairs(animations) do
+            tracks[name] = humanoid:LoadAnimation(anim)
+        end
+    end
+end
+loadAnimations()
+
+local function stopAll()
+    for _, track in pairs(tracks) do
+        track:Stop()
+    end
+end
+
+local function startFlying()
+    flying = true
+    forwardHold = 0
+    flySpeed = savedSpeed
+    bodyVelocity.Parent = HRP
+    bodyGyro.Parent = HRP
+    humanoid.PlatformStand = true
+end
+
+local function stopFlying()
+    flying = false
+    bodyVelocity.Parent = nil
+    bodyGyro.Parent = nil
+    humanoid.PlatformStand = false
+    stopAll()
+end
+
+-- input handling
+UserInputService.InputBegan:Connect(function(input, gp)
+    if gp then return end
+    if input.KeyCode == Enum.KeyCode.W then inputFlags.forward = true end
+    if input.KeyCode == Enum.KeyCode.S then inputFlags.back = true end
+    if input.KeyCode == Enum.KeyCode.A then inputFlags.left = true end
+    if input.KeyCode == Enum.KeyCode.D then inputFlags.right = true end
+    if input.KeyCode == Enum.KeyCode.E then inputFlags.up = true end
+    if input.KeyCode == Enum.KeyCode.Q then inputFlags.down = true end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.W then inputFlags.forward = false end
+    if input.KeyCode == Enum.KeyCode.S then inputFlags.back = false end
+    if input.KeyCode == Enum.KeyCode.A then inputFlags.left = false end
+    if input.KeyCode == Enum.KeyCode.D then inputFlags.right = false end
+    if input.KeyCode == Enum.KeyCode.E then inputFlags.up = false end
+    if input.KeyCode == Enum.KeyCode.Q then inputFlags.down = false end
+end)
+
+RunService.RenderStepped:Connect(function(dt)
+    if not flying then return end
+    if not HRP then return end
+
+    if not inputFlags.forward then forwardHold = 0 end
+
+    local dir = Vector3.zero
+    local camCF = Camera.CFrame
+
+    if inputFlags.forward then dir += camCF.LookVector end
+    if inputFlags.back then dir -= camCF.LookVector end
+    if inputFlags.left then dir -= camCF.RightVector end
+    if inputFlags.right then dir += camCF.RightVector end
+    if inputFlags.up then dir += Vector3.yAxis end
+    if inputFlags.down then dir -= Vector3.yAxis end
+
+    if dir.Magnitude > 0 then dir = dir.Unit end
+
+    bodyVelocity.Velocity = dir * flySpeed
+    bodyGyro.CFrame = camCF
+
+    -- animation logic
+    if inputFlags.up then
+        if not tracks.up.IsPlaying then stopAll(); tracks.up:Play() end
+    elseif inputFlags.down then
+        if not tracks.down.IsPlaying then stopAll(); tracks.down:Play() end
+    elseif inputFlags.left then
+        if not tracks.left1.IsPlaying then
+            stopAll()
+            tracks.left1:Play(); tracks.left1.TimePosition = 2.0; tracks.left1:AdjustSpeed(0)
+            tracks.left2:Play(); tracks.left2.TimePosition = 0.5; tracks.left2:AdjustSpeed(0)
+        end
+    elseif inputFlags.right then
+        if not tracks.right1.IsPlaying then
+            stopAll()
+            tracks.right1:Play(); tracks.right1.TimePosition = 1.1; tracks.right1:AdjustSpeed(0)
+            tracks.right2:Play(); tracks.right2.TimePosition = 0.5; tracks.right2:AdjustSpeed(0)
+        end
+    elseif inputFlags.back then
+        if not tracks.back1.IsPlaying then
+            stopAll()
+            tracks.back1:Play(); tracks.back1.TimePosition = 5.3; tracks.back1:AdjustSpeed(0)
+            tracks.back2:Play(); tracks.back2:AdjustSpeed(0)
+            tracks.back3:Play(); tracks.back3.TimePosition = 0.8; tracks.back3:AdjustSpeed(0)
+            tracks.back4:Play(); tracks.back4.TimePosition = 1; tracks.back4:AdjustSpeed(0)
+        end
+    elseif inputFlags.forward then
+        forwardHold += dt
+        if forwardHold >= 3 then
+            if not tracks.flyFast.IsPlaying then
+                stopAll()
+                flySpeed = savedSpeed * 1.3
+                tracks.flyFast:Play(); tracks.flyFast:AdjustSpeed(0.05)
+            end
+        else
+            if not tracks.flyLow1.IsPlaying then
+                stopAll()
+                flySpeed = savedSpeed
+                tracks.flyLow1:Play()
+                tracks.flyLow2:Play()
+            end
+        end
+    else
+        if not tracks.idle1.IsPlaying then
+            stopAll()
+            tracks.idle1:Play(); tracks.idle1:AdjustSpeed(0)
+        end
+    end
+end)
+
+-- GUI controls
 MovementTab:CreateToggle({
     Name = "Fly",
     CurrentValue = false,
     Callback = function(state)
-        flying = state
-        local lp = game.Players.LocalPlayer
-        local char = lp.Character or lp.CharacterAdded:Wait()
-        local hum = char:FindFirstChildOfClass("Humanoid")
-
-        if state then
-            task.spawn(function()
-                while flying do
-                    local cam = workspace.CurrentCamera.CFrame
-                    local vel = Vector3.zero
-                    if game.UserInputService:IsKeyDown(Enum.KeyCode.W) then vel += cam.LookVector end
-                    if game.UserInputService:IsKeyDown(Enum.KeyCode.S) then vel -= cam.LookVector end
-                    if game.UserInputService:IsKeyDown(Enum.KeyCode.A) then vel -= cam.RightVector end
-                    if game.UserInputService:IsKeyDown(Enum.KeyCode.D) then vel += cam.RightVector end
-                    hum:Move(vel * flySpeed, true)
-                    task.wait()
-                end
-            end)
-        end
+        if state then startFlying() else stopFlying() end
     end,
 })
 
@@ -131,8 +287,11 @@ MovementTab:CreateSlider({
     Range = {10, 200},
     Increment = 5,
     Suffix = "Speed",
-    CurrentValue = flySpeed,
-    Callback = function(v) flySpeed = v end,
+    CurrentValue = savedSpeed,
+    Callback = function(v)
+        savedSpeed = v
+        if flying then flySpeed = v end
+    end,
 })
 
 MovementTab:CreateSlider({
