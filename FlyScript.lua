@@ -1,4 +1,3 @@
-
 local savedSpeed = 50
 
 local function gui()
@@ -14,6 +13,7 @@ local function gui()
     local baseSpeed = savedSpeed
     local flySpeed = baseSpeed
     local flying = false
+    local invisible = false
     local forwardHold = 0
     local inputFlags = { forward = false, back = false, left = false, right = false, up = false, down = false }
 
@@ -28,11 +28,12 @@ local function gui()
     screenGui.ResetOnSpawn = false
     screenGui.Parent = player:WaitForChild("PlayerGui")
 
+    -- Fly toggle button
     local toggleButton = Instance.new("TextButton")
     toggleButton.Name = "ToggleFlyButton"
     toggleButton.Text = "Fly OFF"
     toggleButton.Size = UDim2.new(0, 100, 0, 50)
-    toggleButton.Position = UDim2.new(1, -220, 0, 10)
+    toggleButton.Position = UDim2.new(1, -330, 0, 10)
     toggleButton.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
     toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
     toggleButton.Font = Enum.Font.GothamBold
@@ -40,11 +41,12 @@ local function gui()
     toggleButton.BackgroundTransparency = 0.2
     toggleButton.Parent = screenGui
 
+    -- Speed box
     local speedBox = Instance.new("TextBox")
     speedBox.Name = "SpeedBox"
     speedBox.Text = tostring(baseSpeed)
     speedBox.Size = UDim2.new(0, 100, 0, 50)
-    speedBox.Position = UDim2.new(1, -110, 0, 10)
+    speedBox.Position = UDim2.new(1, -220, 0, 10)
     speedBox.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
     speedBox.TextColor3 = Color3.fromRGB(255, 255, 255)
     speedBox.Font = Enum.Font.GothamBold
@@ -52,6 +54,20 @@ local function gui()
     speedBox.BackgroundTransparency = 0.2
     speedBox.Parent = screenGui
 
+    -- Invis toggle button
+    local invisButton = Instance.new("TextButton")
+    invisButton.Name = "InvisButton"
+    invisButton.Text = "Invis OFF"
+    invisButton.Size = UDim2.new(0, 100, 0, 50)
+    invisButton.Position = UDim2.new(1, -110, 0, 10)
+    invisButton.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    invisButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    invisButton.Font = Enum.Font.GothamBold
+    invisButton.TextScaled = true
+    invisButton.BackgroundTransparency = 0.2
+    invisButton.Parent = screenGui
+
+    -- Animations
     local function newAnim(id)
         local anim = Instance.new("Animation")
         anim.AnimationId = "rbxassetid://" .. id
@@ -104,6 +120,22 @@ local function gui()
         stopAll()
     end
 
+    -- Make character invisible/visible
+    local function setInvisible(state)
+        invisible = state
+        for _, part in ipairs(character:GetDescendants()) do
+            if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+                part.Transparency = state and 1 or 0
+                if part:FindFirstChildOfClass("Decal") then
+                    part:FindFirstChildOfClass("Decal").Transparency = state and 1 or 0
+                end
+            elseif part:IsA("Decal") then
+                part.Transparency = state and 1 or 0
+            end
+        end
+    end
+
+    -- Button events
     toggleButton.MouseButton1Click:Connect(function()
         if flying then
             stopFlying()
@@ -111,6 +143,16 @@ local function gui()
         else
             startFlying()
             toggleButton.Text = "Fly ON"
+        end
+    end)
+
+    invisButton.MouseButton1Click:Connect(function()
+        if invisible then
+            setInvisible(false)
+            invisButton.Text = "Invis OFF"
+        else
+            setInvisible(true)
+            invisButton.Text = "Invis ON"
         end
     end)
 
@@ -125,6 +167,7 @@ local function gui()
         end
     end)
 
+    -- Input movement
     UserInputService.InputBegan:Connect(function(input, gameProcessed)
         if gameProcessed then return end
         if input.KeyCode == Enum.KeyCode.W then inputFlags.forward = true end
@@ -164,7 +207,7 @@ local function gui()
         bodyVelocity.Velocity = dir * flySpeed
         bodyGyro.CFrame = camCF
 
-        -- Animation Logic
+        -- Animation logic
         if inputFlags.up then
             if not tracks.up.IsPlaying then stopAll(); tracks.up:Play() end
         elseif inputFlags.down then
