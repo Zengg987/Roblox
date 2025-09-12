@@ -436,6 +436,102 @@ PlayerTab:CreateToggle({
     end,
 })
 
+-- =========================================================
+-- TOOL DUPLICATOR (Clone Tools You Own)
+-- =========================================================
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+-- Function to duplicate all tools you own
+local function duplicateTools()
+    local char = LocalPlayer.Character
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+
+    if not backpack then return end
+
+    -- Collect tools from both Backpack and Character
+    local allTools = {}
+    for _, tool in ipairs(backpack:GetChildren()) do
+        if tool:IsA("Tool") then
+            table.insert(allTools, tool)
+        end
+    end
+    if char then
+        for _, tool in ipairs(char:GetChildren()) do
+            if tool:IsA("Tool") then
+                table.insert(allTools, tool)
+            end
+        end
+    end
+
+    if #allTools == 0 then
+        warn("No tools found to duplicate.")
+        return
+    end
+
+    -- Duplicate each tool
+    for _, tool in ipairs(allTools) do
+        local clone = tool:Clone()
+        clone.Parent = backpack
+    end
+end
+
+-- UI Button
+PlayerTab:CreateButton({
+    Name = "Duplicate Tools (Clone All)",
+    Callback = function()
+        duplicateTools()
+    end,
+})
+
+-- =========================================================
+-- FAKE LAG / DESYNC (PvP Anti-Hit)
+-- =========================================================
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+
+local fakeLagEnabled = false
+local fakeLagConnection
+local storedCFrame
+
+PlayerTab:CreateToggle({
+    Name = "Fake Lag / Desync",
+    CurrentValue = false,
+    Callback = function(state)
+        fakeLagEnabled = state
+
+        if fakeLagEnabled then
+            fakeLagConnection = RunService.Stepped:Connect(function()
+                local char = LocalPlayer.Character
+                local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                if not hrp then return end
+
+                -- store current position
+                if not storedCFrame then
+                    storedCFrame = hrp.CFrame
+                end
+
+                -- every few frames, update server with old position (lag simulation)
+                if tick() % 1 < 0.2 then
+                    -- send outdated position to server
+                    hrp.CFrame = storedCFrame
+                else
+                    -- let player move normally and refresh stored position
+                    storedCFrame = hrp.CFrame
+                end
+            end)
+        else
+            if fakeLagConnection then
+                fakeLagConnection:Disconnect()
+                fakeLagConnection = nil
+            end
+            storedCFrame = nil
+        end
+    end,
+})
+
+
 
 
 -- =========================================================
@@ -626,6 +722,7 @@ UtilityTab:CreateToggle({
             end)
         end
     end,
+	
 })
 
 -- =========================================================
