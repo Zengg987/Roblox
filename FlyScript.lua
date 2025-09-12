@@ -349,54 +349,39 @@ MovementTab:CreateToggle({
 })
 
 -- =========================================================
--- PLAYER
--- =========================================================
--- =========================================================
--- FULL GOD MODE
+-- FULL GOD MODE (IMMUNE TO DAMAGE + SERVER REMOTES)
 -- =========================================================
 local godModeEnabled = false
 local godConnections = {}
+local oldNamecall
 
 local function applyGodMode(char)
     if not char then return end
     local hum = char:FindFirstChildOfClass("Humanoid")
-    if not hum then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hum or not hrp then return end
 
-    -- Humanoid replacement (health immunity)
-    hum.Name = "1xGodHumanoid"
-    local clone = hum:Clone()
-    clone.Parent = char
-    clone.Name = "Humanoid"
-    task.wait()
-    hum:Destroy()
-    clone.DisplayDistanceType = "None"
-    clone.Health = clone.MaxHealth
-
-    -- Constantly force max health
-    table.insert(godConnections, clone.HealthChanged:Connect(function()
-        if godModeEnabled then
-            clone.Health = clone.MaxHealth
+    -- Keep health locked
+    table.insert(godConnections, hum.HealthChanged:Connect(function()
+        if godModeEnabled and hum.Health < hum.MaxHealth then
+            hum.Health = hum.MaxHealth
         end
     end))
 
-    -- Prevent void kill / fall damage
-    local hrp = char:WaitForChild("HumanoidRootPart", 2)
-    if hrp then
-        table.insert(godConnections, game:GetService("RunService").Stepped:Connect(function()
-            if godModeEnabled and hrp.Position.Y < -5 then
-                hrp.Velocity = Vector3.zero
-                hrp.CFrame = CFrame.new(0, 10, 0) -- teleport back up if falling in void
-            end
-        end))
-    end
+    -- Block void kill / fall damage
+    table.insert(godConnections, game:GetService("RunService").Stepped:Connect(function()
+        if godModeEnabled and hrp.Position.Y < -5 then
+            hrp.Velocity = Vector3.zero
+            hrp.CFrame = CFrame.new(0, 10, 0)
+        end
+    end))
 
-    -- Killbrick / trap immunity
+    -- Block kill parts / traps
     for _, part in ipairs(char:GetDescendants()) do
         if part:IsA("BasePart") then
             part.Touched:Connect(function(hit)
-                if godModeEnabled and hit:IsDescendantOf(workspace) then
-                    -- Cancel killbricks or traps trying to damage
-                    if clone then clone.Health = clone.MaxHealth end
+                if godModeEnabled then
+                    hum.Health = hum.MaxHealth
                 end
             end)
         end
@@ -404,14 +389,16 @@ local function applyGodMode(char)
 end
 
 PlayerTab:CreateToggle({
-    Name = "God Mode (Full Immunity)",
+    Name = "God Mode ",
     CurrentValue = false,
     Callback = function(state)
         godModeEnabled = state
 
         -- cleanup old connections
         for _, con in ipairs(godConnections) do
-            if con.Disconnect then con:Disconnect() end
+            if typeof(con) == "RBXScriptConnection" then
+                con:Disconnect()
+            end
         end
         table.clear(godConnections)
 
@@ -424,9 +411,31 @@ PlayerTab:CreateToggle({
                 task.wait(1)
                 applyGodMode(newChar)
             end))
+
+            -- hook remote events (anti-kill / anti-damage)
+            if not oldNamecall then
+                oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+                    local method = getnamecallmethod()
+                    if godModeEnabled and self:IsA("RemoteEvent") or self:IsA("RemoteFunction") then
+                        local args = {...}
+                        -- detect kill/damage attempts
+                        if tostring(self):lower():find("damage") or tostring(self):lower():find("kill") then
+                            return nil -- block it
+                        end
+                        if method == "FireServer" or method == "InvokeServer" then
+                            -- stop remote that sets health
+                            if typeof(args[1]) == "number" and args[1] < 0 then
+                                return nil
+                            end
+                        end
+                    end
+                    return oldNamecall(self, ...)
+                end)
+            end
         end
     end,
 })
+
 
 
 -- =========================================================
