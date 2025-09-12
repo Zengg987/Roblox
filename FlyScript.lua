@@ -120,17 +120,19 @@ local function gui()
         stopAll()
     end
 
-    -- Make character invisible/visible
+    -- Server replicated invisibility
     local function setInvisible(state)
         invisible = state
-        for _, part in ipairs(character:GetDescendants()) do
-            if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-                part.Transparency = state and 1 or 0
-                if part:FindFirstChildOfClass("Decal") then
-                    part:FindFirstChildOfClass("Decal").Transparency = state and 1 or 0
-                end
-            elseif part:IsA("Decal") then
-                part.Transparency = state and 1 or 0
+        for _, obj in ipairs(character:GetDescendants()) do
+            if obj:IsA("BasePart") and obj.Name ~= "HumanoidRootPart" then
+                obj.Transparency = state and 1 or 0
+                obj.CanCollide = not state
+            elseif obj:IsA("Decal") or obj:IsA("Texture") then
+                obj.Transparency = state and 1 or 0
+            elseif obj:IsA("Accessory") then
+                obj:Destroy() -- hapus topi/aksesoris supaya bener2 ilang
+            elseif obj:IsA("Shirt") or obj:IsA("Pants") or obj:IsA("ShirtGraphic") then
+                obj:Destroy() -- hapus baju/celana
             end
         end
     end
