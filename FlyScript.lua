@@ -50,13 +50,18 @@ end
 
 local function notify(title, message, dur)
     pcall(function()
-        if Window and Window:Notify then
-            Window:Notify({Title = title or "Notice", Content = message or "", Duration = dur or 4})
+        if Rayfield and Rayfield.Notify then
+            Rayfield:Notify({
+                Title = title or "Notice",
+                Content = message or "",
+                Duration = dur or 4
+            })
         else
-            warn(title .. ": " .. tostring(message))
+            warn((title or "Notice") .. ": " .. tostring(message))
         end
     end)
 end
+
 
 -- =========================================================
 -- ORIGINAL ESP (Friend = Green | Enemy = Red)
@@ -1257,5 +1262,4 @@ VisualsTab:CreateToggle({
 
 -- Gravity reset button
 MovementTab:CreateButton({Name = "Reset Gravity", Callback = function() workspace.Gravity = originalGravity notify("Gravity", "Reset",2) end})
-
 
